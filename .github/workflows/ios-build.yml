@@ -1,0 +1,78 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build iOS App
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode Version
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Cache Swift Packages
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages/
+          key: ${{ runner.os }}-spm-${{ hashFiles('EnsWilde.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Resolve Swift Packages
+        run: |
+          xcodebuild -project EnsWilde.xcodeproj \
+            -scheme EnsWilde \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            resolvePackageDependencies \
+            | xcbeautify || xcpretty || cat
+
+      - name: Build Unsigned IPA
+        run: |
+          mkdir -p build
+          xcodebuild -project EnsWilde.xcodeproj \
+            -scheme EnsWilde \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            ARCHIVE_PATH="build/EnsWilde.xcarchive" \
+            archive \
+            | xcbeautify || xcpretty || cat
+
+      - name: Create IPA from Archive
+        run: |
+          mkdir -p Payload
+          cp -R "build/EnsWilde.xcarchive/Products/Applications/EnsWilde.app" Payload/
+          zip -r "build/EnsWilde-unsigned.ipa" Payload
+          rm -rf Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EnsWilde-unsigned-ipa
+          path: build/EnsWilde-unsigned.ipa
+          retention-days: 7
+
+      - name: Upload Build Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            ~/Library/Developer/Xcode/DerivedData/*/Logs/
+          retention-days: 3
