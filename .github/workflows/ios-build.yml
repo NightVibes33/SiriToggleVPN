@@ -31,11 +31,9 @@ jobs:
 
       - name: Resolve Swift Packages
         run: |
-          xcodebuild -project EnsWilde.xcodeproj \
-            -scheme EnsWilde \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
-            resolvePackageDependencies \
-            | xcbeautify || xcpretty || cat
+          xcodebuild -resolvePackageDependencies \
+            -project EnsWilde.xcodeproj \
+            -scheme EnsWilde
 
       - name: Build Unsigned IPA
         run: |
@@ -50,7 +48,7 @@ jobs:
             DEVELOPMENT_TEAM="" \
             PROVISIONING_PROFILE="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
-            ARCHIVE_PATH="build/EnsWilde.xcarchive" \
+            -archivePath "build/EnsWilde.xcarchive" \
             archive \
             | xcbeautify || xcpretty || cat
 
